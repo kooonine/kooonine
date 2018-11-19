@@ -1,0 +1,19 @@
+{
+  "jsonrpc": "2.0",
+  "method": "icx_sendTransaction",
+  "params": {
+    "version": "0x3",
+    "stepLimit": "0x300000000000000000000000000",
+    "timestamp": "0x573117f1d6568",
+    "nid": "0x3",
+    "to": "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba",
+    "dataType": "call",
+    "data": {
+      "method": "remove_user",
+      "params": {"contents":"hx8d29ac2645805452a6e921c888b23c58be862cf0"
+
+      }
+    }
+  },
+  "id": 1
+}
