@@ -11,8 +11,6 @@
 
 
 
-
-
 # 토큰 시스템(Token Systems)
 블록체인토큰시스템(On-blockchain token system)은 미화/금 등과 연동된 하위화폐, 
 주식과 “스마트자산* (Smart Property: 비트코인의 블록체인 상에서 소유권이 컨트롤/관리되는 자산),” "위조불가능한(secure unforgeable)" 쿠폰, 
@@ -23,11 +21,22 @@
 A라는 주체로부터 X 단위의 화폐/토큰을 차감하고, 차감한 X 단위의 화폐/토큰을 B에게 지급한다. 단, 거래 전, A는 최소 X단위를 보유하고 있었음
 A가 이 거래를 승인함
 이더리움에서 유저는 바로 위의 로직을 컨트랙트에 반영 시키기만 하면 된다. Serpent 에서 토큰시스템을 실행하는 기본적은 코드는 아래와 같다:
-
+```
 def send(to, value):
     if self.storage[msg.sender] >= value:
         self.storage[msg.sender] = self.storage[msg.sender] - value
         self.storage[to] = self.storage[to] + value
+        
+def transfer(self, to: Address, value: int):
+    if msg.sender == to_addr or value < 0:
+        self.revert(f"invalid parameter")
+    if self._balances[from_addr] < value:
+        self.revert(f"User balance is not enough")
+        
+    self._balances[msg.sender] -= value
+    self._balances[to_addr] += value
+```
+        
 이는 기본적으로 본 백서에서 설명한 “은행시스템”의 "상태변환함수(state transition function)"를 아무런 가공없이 그대로적용시킨 것이다. 
 통화의 단위를 정의하고 배급하기 위한 최초 작업을 위해서, 또는 더 나아가 여타 컨트랙트들이 계좌의 잔금에 대한 정보요청을 처리하기 위한, 몇 줄의 코드가 추가적으로 더 쓰여져야 할 수도 있다. 
 하지만, 그 정도가 토큰시스템을 만드는 데 필요한 전부이다. 이론적으로, 
