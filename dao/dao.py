@@ -1,5 +1,6 @@
 from iconservice import *
 
+
 class daos(IconScoreBase):
 
     _LIST = 'list'
