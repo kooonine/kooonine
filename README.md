@@ -2,231 +2,333 @@
 
 It's a simple SCORE to vote
 
-```python
-from iconservice import *
-
-class daos(IconScoreBase):
-
-    _LIST = 'list'
-    _USER = 'user'
-    _VOTE = 'vote'
-    _USERNUM = 'usernum'
-    _LIST_INFORMATION = 'list_information'
-
-    def __init__(self, db: IconScoreDatabase) -> None:
-        super().__init__(db)
-        self._usernum = VarDB(self._USERNUM, db, value_type=int)
-        self._user = DictDB(self._USER, db, value_type=int)
-        self._vote = DictDB(self._VOTE, db, value_type=int, depth=2)
-        self._list = ArrayDB(self._LIST, db, value_type=str)
-        self._list_information = DictDB(self._LIST_INFORMATION, db, value_type=str)
-
-    def on_install(self,test: str = None) -> None:
-        super().on_install()
-        self._usernum.set(1)
-        self._user[self.owner] = self.now()
-
-    def on_update(self) -> None:
-        super().on_update()
-
-    def user_is(self):
-        if self._user[self.msg.sender]:
-            return True
-        return False
-
-    def check_authority(self,code):
-        if self._user[self.msg.sender] < int(json_loads(self._list_information[code])['date'])\
-                and self._vote[self.msg.sender][code] == 0 \
-                and json_loads(self._list_information[code])['result'] == "":
-            return True
-        return False
-
-    def proposal(self,code,contents):
-        code = code + str(len(self._list))
-        self._list.put(code)
-        self._list_information[code] = \
-            f'{{"contents":"{contents}","date":"{self.now()}",' \
-            f'"total_num":"{self._usernum.get()}",' \
-            f'"agree_num":"{int(self._usernum.get() / 2 + 1)}",' \
-            f'"opposition_num":"{int(self._usernum.get() / 2)}",' \
-            f'"proposer":"{self.msg.sender}",' \
-            f'"result":""}}'
-
-    def excute(self,code,res):
-        result = json_loads(self._list_information[code])
-        if res == 1:
-            result['agree_num'] = int(result['agree_num']) - 1
-            if result['agree_num'] == 0:
-                if code[:1] == 'A':
-                    self._user[Address.from_string(result['contents'])] = self.now()
-                    self._usernum.set(int(self._usernum.get()) + 1)
-                elif code[:1] == 'R':
-                    self._user[Address.from_string(result['contents'])] = ""
-                    self._usernum.set(self._usernum.get() - 1)
-                result['result'] = 'Allow'
-                self._list_information[code] = json_dumps(result)
-            else:
-                self._list_information[code] = json_dumps(result)
-        elif res == 2:
-            result['opposition_num'] = int(result['opposition_num']) - 1
-            if result['opposition_num'] <= 0:
-                result['result'] = 'Refuse'
-                self._list_information[code] = json_dumps(result)
-            else:
-                self._list_information[code] = json_dumps(result)
-
-    @external
-    def add_user(self, contents: Address):
-        if self.user_is():
-            if self._user[contents]:
-                self.revert("existing user")
-            self.proposal('A', contents)
-        else:
-            self.revert("not user")
-        return True
-
-    @external
-    def remove_user(self, contents: Address):
-        if self.user_is():
-            if not self._user[contents]:
-                self.revert("not existing user")
-            self.proposal('R', contents)
-        else:
-            self.revert("not user")
-        return True
-
-    @external
-    def ox(self, contents: str):
-        if self.user_is():
-            self.proposal('O', contents)
-        else:
-            self.revert("not user")
-        return True
-
-    @external
-    def vote(self, code: str, vote_res: int):
-        if self.user_is():
-            if not vote_res == 1 or vote_res == 2:
-                self.revert("not vote")
-            if not self._list_information[code]:
-                self.revert("not list_information")
-            if self.check_authority(code):
-                self._vote[self.msg.sender][code] = vote_res
-                self.excute(code,vote_res)
-            else:
-                self.revert("not check_authority")
-        else:
-            self.revert("not user")
-        return True
-
-    @external
-    def vote_list(self):
-        if self.user_is():
-            arr = []
-            for e in self._list:
-                arr.append('CODE : ' + e + ' info : ' + self._list_information[e] +
-                           ' vote check : ' + str(self._vote[self.msg.sender][e]))
-            return arr
-        return 'not user'
-
-    @external
-    def vote_list_delete(self,code: str):
-        if self.user_is():
-            result = json_loads(self._list_information[code])
-            if result['result'] == "" \
-                    and Address.from_string(result['proposer']) == self.msg.sender:
-                result['result'] = 'Delete'
-                self._list_information[code] = json_dumps(result)
-        else:
-            self.revert("delete fail")
-        return True
-
+## Purpose
+dao_vote is a simple vote SCORE. You can add or remove users by voting, Proportional to the number of users
+The number of votes will change.
+## Structure
+```
+dao_vote
+├── README.md
+├── dao_vote
+│   ├── __init__.py
+│   ├── dao_vote.py
+│   └── package.json
+├── tests
+│   ├── keystore_test1
+│   └── test.py
+├── deploy.json
+├── call.json
+└── send.json
 ```
 
-### Invoke a method from CLI
+## How To Use
+### Available people
+Users registered with dao_vote SCORE(The first user is deployee)
 
-Below is the T-Bears CLI command to invoke the SCORE's external read-only method. Before issuing the command, don't forget to change the "to" value in the JSON request with an actual SCORE address. 
+### SCORE deployment
+    tbears deploy -k <keystore_file> -c deploy.json ./dao_vote
 
-```bash
-tbears cat call.json 
-{
-    "jsonrpc": "2.0",
-    "method": "icx_call",
-    "id": 1,
-    "params": {
-        "to": "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba", 
+The deploy.json option is not required when deploying.
+
+## Specification
+### Methods
+
+#### add_user
+Suggests a new user to SCORE
+
+    @external
+    def add_user(self, contents: Address) -> None:
+ 
+#### Example
+    
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_sendTransaction",
+      "params": {
+        "version": "0x3",
+        "stepLimit": "0x300000000000000000000000000",
+        "timestamp": "0x573117f1d6568",
+        "nid": "0x3",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
         "dataType": "call",
         "data": {
-            "method": "list"
+          "method": "add_user",
+          "params": {"contents":"hx485c66c60229f31ab3f130753caf6822078714f1"
+
+          }
         }
+      },
+      "id": 1
     }
-}
-tbears call call.json 
-response : {
-    "jsonrpc": "2.0",
-    "result": "[
-        "CODE : O0 info : {\"contents\": \"test\", \"date\": \"1542343662056203\", \"total_num\": \"1\", \"agree_num\": 0, \"opposition_num\": \"0\", \"proposer\": \"hxe7af5fcfd8dfc67530a01a0e403882687528dfcb\", \"result\": \"Allow\"} vote check : 0","
-        ]
-    "id": 1
-}
-
-tbears sendtx -k keystore_test1 send.json
-{
-  "jsonrpc": "2.0",
-  "method": "icx_sendTransaction",
-  "params": {
-    "version": "0x3",
-    "stepLimit": "0x300000000000000000000000000",
-    "timestamp": "0x573117f1d6568",
-    "nid": "0x3",
-    "to": "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba",
-    "dataType": "call",
-    "data": {
-      "method": "ox",
-      "params": {"contents":"test"
-
-      }
+    
+#### Sendtx result
+  
+    Transaction result: {
+        "jsonrpc": "2.0",
+        "result": {
+            "txHash": "0xf9cd30152af278924a7302186923449d26e94d33e8d9c785cccb75789b7c358d",
+            "blockHeight": "0xd4b3",
+            "blockHash": "0x531b64d2588b7ec8849adff43084c41f68da73b2c2b6a0101dcbbc24c5b67b86",
+            "txIndex": "0x0",
+            "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+            "stepUsed": "0x1045a0",
+            "stepPrice": "0x0",
+            "cumulativeStepUsed": "0x1045a0",
+            "eventLogs": [],
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "status": "0x1"
+        },
+        "id": 1
     }
-  },
-  "id": 1
-}
 
-```
+#### remove_user
+Suggest removal of existing users to SCORE
 
-### Run test
+    @external
+    def remove_user(self, contents: Address) -> None:
+ 
+#### Example
 
-- Testcase uses python sdk. You need to install python sdk to run the test.
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_sendTransaction",
+      "params": {
+        "version": "0x3",
+        "stepLimit": "0x300000000000000000000000000",
+        "timestamp": "0x573117f1d6568",
+        "nid": "0x3",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+        "dataType": "call",
+        "data": {
+          "method": "remove_user",
+          "params": {"contents":"hx485c66c60229f31ab3f130753caf6822078714f1"
+    
+          }
+        }
+      },
+      "id": 1
+    }
+    
+#### Sendtx result
 
-```bash
-$ pip3 install iconsdk
-```
+    Transaction result: {
+        "jsonrpc": "2.0",
+        "result": {
+            "txHash": "0x8d2213f2270faafe76614438d15cf59fa8e26f015e0eea7bd57f87b0015a8d90",
+            "blockHeight": "0xd52d",
+            "blockHash": "0x90723b7bdba446434c86672d1d5f0bc7f0fc826e8f4cf56c573f8431d7a51e33",
+            "txIndex": "0x0",
+            "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+            "stepUsed": "0x104762",
+            "stepPrice": "0x0",
+            "cumulativeStepUsed": "0x104762",
+            "eventLogs": [],
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "status": "0x1"
+        },
+        "id": 1
+    }
 
-- Go to the `tests` folder, open `test.py`, and change the global variables.
+#### ox
+Propose Opposition vote
 
-```bash
-$ tree dao
-dao
-├── README.md
-├── dao
-│   ├── __init__.py
-│   ├── dao.py
-│   └── package.json
-└── tests
-    ├── keystore_test1
-    └── test.py
-```
+    @external
+    def ox(self, contents: str) -> None:
 
-Use the actual SCORE addresses. If you test on T-Bears, use the default node_uri. If test on other network, change the node_uri and network_id accordingly.
+#### Example
+
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_sendTransaction",
+      "params": {
+        "version": "0x3",
+        "stepLimit": "0x300000000000000000000000000",
+        "timestamp": "0x573117f1d6568",
+        "nid": "0x3",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+        "dataType": "call",
+        "data": {
+          "method": "ox",
+          "params": {"contents":"hello_world"
+    
+          }
+        }
+      },
+      "id": 1
+    }
+
+#### Sendtx result
+
+    Transaction result: {
+        "jsonrpc": "2.0",
+        "result": {
+            "txHash": "0x580a29348cab67b77f79fc3a2f7c26961949183a94bd552177a752f203ff2eff",
+            "blockHeight": "0xd53d",
+            "blockHash": "0x698b3d77a037fe32e0f8349f92a81242473a303b424d65d9c8edc3f078e7fbe6",
+            "txIndex": "0x0",
+            "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+            "stepUsed": "0x100fea",
+            "stepPrice": "0x0",
+            "cumulativeStepUsed": "0x100fea",
+            "eventLogs": [],
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "status": "0x1"
+        },
+        "id": 1
+    }
+
+#### vote
+I vote for the agenda I want
+    
+    @external
+    def vote(self, code: str, vote_res: int) -> None:
+
+#### Example
+
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_sendTransaction",
+      "params": {
+        "version": "0x3",
+        "stepLimit": "0x300000000000000000000000000",
+        "timestamp": "0x573117f1d6568",
+        "nid": "0x3",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+        "dataType": "call",
+        "data": {
+          "method": "vote",
+          "params": {"code":"A0", "vote_res":"1"
+    
+          }
+        }
+      },
+      "id": 1
+    }
+
+#### Sendtx result
+
+    Transaction result: {
+        "jsonrpc": "2.0",
+        "result": {
+            "txHash": "0x1adc819108b2b9757c2f75abaa3f8a0ee04e48d5b08d781ae9a309e7899e2b8b",
+            "blockHeight": "0xd521",
+            "blockHash": "0x3912546e610a4112025beb4e820b6f92414f155e386b292860a71af1ab462e50",
+            "txIndex": "0x0",
+            "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+            "stepUsed": "0xfb3ba",
+            "stepPrice": "0x0",
+            "cumulativeStepUsed": "0xfb3ba",
+            "eventLogs": [],
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "status": "0x1"
+        },
+        "id": 1
+    }
+
+#### vote_list_delete
+Delete voting list
+
+    @external
+    def vote_list_delete(self,code: str) -> None:
+    
+#### Example
+
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_sendTransaction",
+      "params": {
+        "version": "0x3",
+        "stepLimit": "0x300000000000000000000000000",
+        "timestamp": "0x573117f1d6568",
+        "nid": "0x3",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+        "dataType": "call",
+        "data": {
+          "method": "vote_list_delete",
+          "params": {"code":"O2"
+    
+          }
+        }
+      },
+      "id": 1
+    }
+    
+#### Sendtx result
+
+    Transaction result: {
+        "jsonrpc": "2.0",
+        "result": {
+            "txHash": "0x452c2383047e3b6b507c678fd1c2d97899e8803e375fb1ff746a408240adcdbe",
+            "blockHeight": "0xd557",
+            "blockHash": "0xbcd218a00208e74b6218779dfe1e7bd1cd4a97c842c362be6d633d4cfbb05479",
+            "txIndex": "0x0",
+            "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+            "stepUsed": "0xfb068",
+            "stepPrice": "0x0",
+            "cumulativeStepUsed": "0xfb068",
+            "eventLogs": [],
+            "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "status": "0x1"
+        },
+        "id": 1
+    }
+
+#### vote_list
+Check the voting list
+
+    @external(readonly=True)
+    def vote_list(self) -> str:
+    
+#### Example
+
+    {
+      "jsonrpc": "2.0",
+      "method": "icx_call",
+      "params": {
+        "from": "hxe7af5fcfd8dfc67530a01a0e403882687528dfcb",
+        "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
+        "dataType": "call",
+        "data": {
+          "method": "vote_list",
+          "params": {
+    
+          }
+        }
+      },
+      "id": 1
+    }
+    
+#### Call result
+
+    response : {
+        "jsonrpc": "2.0",
+        "result": [
+            "CODE : A0 info : {\"contents\": \"hx485c66c60229f31ab3f130753caf6822078714f1\", \"date\": \"1542761884077347\", \"total_num\": \"1\", \"agree_num\": 0, \"opposition_num\": \"0\", \"proposer\": \"hxe7af5fcfd8dfc67530a01a0e403882687528dfcb\", \"result\": \"Allow\"} vote check : 1",
+            "CODE : R1 info : {\"contents\":\"hx485c66c60229f31ab3f130753caf6822078714f1\",\"date\":\"1542763104672933\",\"total_num\":\"2\",\"agree_num\":\"2\",\"opposition_num\":\"1\",\"proposer\":\"hxe7af5fcfd8dfc67530a01a0e403882687528dfcb\",\"result\":\"\"} vote check : 0",
+            "CODE : O2 info : {\"contents\": \"hello_world\", \"date\": \"1542763264738575\", \"total_num\": \"2\", \"agree_num\": \"2\", \"opposition_num\": \"1\", \"proposer\": \"hxe7af5fcfd8dfc67530a01a0e403882687528dfcb\", \"result\": \"Delete\"} vote check : 0"
+        ],
+        "id": 1
+    }
 
 
-```python
-node_uri = "http://localhost:9000/api/v3"
-network_id = 3
-vote_dao_address = "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba"
-keystore_path = "./keystore_test1"
-keystore_pw = "test1_Account"
 
-```
+
+## Run test
+
+Testcase uses python sdk. You need to install python sdk to run the test.
+    
+    pip3 install iconsdk
+    
+The value can be changed depending on the environment
+
+    node_uri = "http://localhost:9000/api/v3"
+    network_id = 3
+    vote_dao_address = "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba"
+    basic_step_limit = 3000000000000000000000
+    basic_timestamp = 0x573117f1d6568
+    keystore_path = "./keystore_test1"
+    keystore_pw = "test1_Account"
+
 
 - Run the test.
 

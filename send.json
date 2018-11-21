@@ -6,7 +6,7 @@
     "stepLimit": "0x300000000000000000000000000",
     "timestamp": "0x573117f1d6568",
     "nid": "0x3",
-    "to": "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba",
+    "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
     "dataType": "call",
     "data": {
       "method": "remove_user",

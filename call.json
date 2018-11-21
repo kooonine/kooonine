@@ -3,7 +3,7 @@
   "method": "icx_call",
   "params": {
     "from": "hx7559f4aee4f8086a11113dd2d5a8881efc9cc46c",
-    "to": "cx3f9f66cd7478d8dfa85cdf977965000e97bedcba",
+    "to": "cxa9bd7bae66565016f5515866d794c4ae5d692a1d",
     "dataType": "call",
     "data": {
       "method": "vote_list",
@@ -14,4 +14,3 @@
   },
   "id": 1
 }
-
