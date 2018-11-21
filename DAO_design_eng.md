@@ -3,7 +3,7 @@
 Decentralized Autonomous Organization<br>
 In other words, DAO is autonomous. Once the DAO is released, no outside forces can interfere with the DAO.
 
-## Development Goals
+## Development Purpose
 Implement an in-house decision-making voting system<br>
 
        
